@@ -1,0 +1,26 @@
+@@ 1 same
+@@ 2
+kernel_code = """
+__kernel void matrix_multiply(__global int* A, __global int* B, __global int* C, const int M, const int N, const int K) {
+    int row = get_global_id(0);
+    int col = get_global_id(1);
+    if (row >= M || col >= K) return;
+    int sum = 0;
+    for (int i = 0; i < N; i++) sum += A[row * N + i] * B[i * K + col];
+    C[row * K + col] = sum;
+}
+"""
+@@ 3
+M = N = K = 3
+@@ 4 same
+@@ 5 same
+@@ 6 same
+@@ 7 same
+@@ 8
+mf = cl.mem_flags
+buffer_A = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=matrix_A)
+buffer_B = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=matrix_B)
+buffer_C = cl.Buffer(ctx, mf.WRITE_ONLY, matrix_C.nbytes)
+@@ 9 same
+@@ 10 same
+@@ 11 same

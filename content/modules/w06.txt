@@ -1,0 +1,77 @@
+@id w06
+@week 6
+@title Square an array
+@theme First CUDA kernel, one thread per element
+@track software
+@level 2
+@experiment Write a CUDA program to demonstrate squaring an array using CUDA kernel.
+@aim To implement a CUDA program to execute squaring an array with CUDA kernel.
+@requirements Any GPU which supports CUDA
+@result The output in the terminal is as follows:
+@@output
+Original Array:
+[10 20 30 40 50 60 70 80 90]
+Squared Array:
+[ 100 400 900 1600 2500 3600 4900 6400 8100]
+@@cell imports | Imports | The PyCUDA header: driver as cuda, autoinit, numpy as np, SourceModule. Same 4 lines in every CUDA week.
+import pycuda.driver as cuda
+import pycuda.autoinit
+
+import numpy as np
+
+from pycuda.compiler import SourceModule
+@@cell kernel | Kernel | One GPU thread per element. Work out my index, stay inside N, square my number.
+# Define the CUDA kernel code for squaring an array
+cuda_code = """
+
+__global__ void square_array(int *in, int *out, int N) {
+
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < N) {
+
+        int val = in[idx];
+        out[idx] = val * val;
+
+    }
+}
+"""
+@@cell compile | Compile and fetch | Compile the kernel text, then pull out the function by its name.
+# Compile the CUDA code
+mod = SourceModule(cuda_code)
+
+# Get the kernel function
+square_array = mod.get_function("square_array")
+@@cell data | Input data | Nine numbers 10 to 90 as 32-bit ints, and N is how many.
+# Input array
+input_array = np.array([10, 20, 30, 40, 50, 60, 70, 80, 90], dtype=np.int32)
+
+# Define the array size
+N = input_array.size
+@@cell memory | Host and device arrays | A host copy, then two GPU buffers of the same byte size (in and out).
+# Host and device arrays
+host_array = input_array.copy()
+
+device_array_in = cuda.mem_alloc(host_array.nbytes)
+device_array_out = cuda.mem_alloc(host_array.nbytes)
+@@cell copyin | Copy to device | htod = host to device.
+# Copy host data to device
+cuda.memcpy_htod(device_array_in, host_array)
+@@cell grid | Grid and block sizes | 256 threads per block, and enough blocks to cover N (round up).
+# Define grid and block sizes
+block_size = 256
+
+grid_size = (N + block_size - 1) // block_size
+@@cell launch | Launch | Call the kernel with in, out, N as int32, then block and grid as 3-tuples.
+# Execute the kernel
+square_array(device_array_in, device_array_out, np.int32(N), block=(block_size, 1, 1), grid=(grid_size, 1, 1))
+@@cell copyout | Copy back | dtoh = device to host. The answer lands in host_array.
+# Copy the result back to the host
+cuda.memcpy_dtoh(host_array, device_array_out)
+@@cell print | Print | Label, array, label, array.
+# Print the original and squared arrays
+print("Original Array:")
+print(input_array)
+
+print("Squared Array:")
+print(host_array)

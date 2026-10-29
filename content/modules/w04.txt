@@ -1,0 +1,31 @@
+@id w04
+@week 4
+@title USB camera stream
+@theme OpenCV camera capture
+@track hardware
+@level 3
+@experiment Interfacing camera and modules with Jetson Nano.
+@aim To Interface camera to Jetson nano.
+@requirements Jetson Nano
+@note Connect Camera using USB to Jetson Nano.
+@result We can see the Live Camera stream in a separate window. When we hit 'q', The program outputs "Alert ! Camera Disconnected" in the terminal.
+@@cell imports | Imports | numpy for arrays, cv2 (OpenCV) for the camera and windows.
+import numpy as np
+import cv2
+@@cell open | Open the camera | Camera 0 is the first camera. Keep going while it is open.
+cap = cv2.VideoCapture(0)
+while(cap.isOpened()):
+@@cell frames | Frame loop | Read a frame, show it in a window called img, and stop when q is pressed (wait 30 ms per frame).
+    while True:
+
+        ret, img = cap.read()
+        cv2.imshow('img', img)
+
+        if cv2.waitKey(30) & 0xff == ord('q'):
+            break
+@@cell release | Release | Let go of the camera and close the window.
+    cap.release()
+    cv2.destroyAllWindows()
+@@cell else | Camera gone | The while loop's else runs once the camera is no longer open.
+else:
+    print("Alert ! Camera disconnected")

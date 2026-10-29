@@ -1,0 +1,13 @@
+@@ 1 info | numpy is imported in the PDF but never used, so it can go.
+import cv2
+@@ 2
+cap = cv2.VideoCapture(0)
+while cap.isOpened():
+@@ 3 warn | Without & 0xff, the q check can fail on systems where waitKey returns extra high bits. Write the PDF version in the exam.
+    while True:
+        ret, img = cap.read()
+        cv2.imshow('img', img)
+        if cv2.waitKey(30) == ord('q'):
+            break
+@@ 4 same
+@@ 5 same

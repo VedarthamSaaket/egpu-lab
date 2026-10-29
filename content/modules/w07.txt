@@ -1,0 +1,90 @@
+@id w07
+@week 7
+@title Add two large vectors
+@theme Vector addition, host and device arrays
+@track software
+@level 2
+@experiment Write a CUDA C program to add two large vectors.
+@aim To add two large vectors using CUDA.
+@requirements Any GPU which supports CUDA
+@result The terminal output is as follows:
+@@output
+Initial Vector (h_a):
+[ 0 1 2 ... 99997 99998 99999]
+Initial Vector (h_b):
+[ 0 2 4 ... 199994 199996 199998]
+Final Vector (h_c):
+[ 0 3 6 ... 299991 299994 299997]
+@@cell imports | Imports | The PyCUDA header, same 4 lines.
+import pycuda.driver as cuda
+import pycuda.autoinit
+
+import numpy as np
+
+from pycuda.compiler import SourceModule
+@@cell size | Vector size | One hundred thousand elements.
+# Define the vector size (number of elements)
+N = 100000
+@@cell kernel | Kernel | One thread per element: c = a + b at my index.
+# CUDA kernel to add two vectors
+cuda_code = """
+
+__global__ void vectorAdd(float *a, float *b, float *c, int N) {
+
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < N) {
+        c[idx] = a[idx] + b[idx];
+
+    }
+}
+"""
+@@cell compile | Compile and fetch | Compile, then get vectorAdd by name.
+# Compile the CUDA code
+mod = SourceModule(cuda_code)
+
+# Get the kernel function
+vectorAdd = mod.get_function("vectorAdd")
+@@cell host | Host vectors | h_ means host. a = 0,1,2..., b = twice that, c = zeros shaped like a.
+# Host vectors
+h_a = np.arange(N, dtype=np.int32)
+h_b = np.arange(N, dtype=np.int32) * 2
+
+h_c = np.zeros_like(h_a)
+@@cell device | Device vectors | d_ means device. One mem_alloc per vector, same size as its host twin.
+# Device vectors
+d_a = cuda.mem_alloc(h_a.nbytes)
+d_b = cuda.mem_alloc(h_b.nbytes)
+d_c = cuda.mem_alloc(h_c.nbytes)
+@@cell copyin | Copy to device | Only the inputs a and b go up. c comes back later.
+# Copy host data to device
+cuda.memcpy_htod(d_a, h_a)
+cuda.memcpy_htod(d_b, h_b)
+@@cell grid | Grid and block sizes | 256 per block, round up the block count.
+# Define grid and block sizes
+block_size = 256
+
+grid_size = (N + block_size - 1) // block_size
+@@cell launch | Launch | a, b, c, N, block, grid.
+# Execute the kernel
+vectorAdd(d_a, d_b, d_c, np.int32(N), block=(block_size, 1, 1), grid=(grid_size, 1, 1))
+@@cell copyout | Copy back | Bring c down to h_c.
+# Copy the result back to the host
+cuda.memcpy_dtoh(h_c, d_c)
+@@cell print | Print | Label then vector, three times. The second and third labels start with \n.
+# Print the initial and final vectors
+print("Initial Vector (h_a):")
+print(h_a)
+
+print("\nInitial Vector (h_b):")
+print(h_b)
+
+print("\nFinal Vector (h_c):")
+print(h_c)
+@@cell cleanup | Clean up | Free every device buffer, then say done.
+# Clean up
+d_a.free()
+d_b.free()
+d_c.free()
+
+print("Vector addition completed.")

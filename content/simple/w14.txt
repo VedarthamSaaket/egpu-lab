@@ -1,0 +1,24 @@
+@@ 1 same
+@@ 2 same
+@@ 3 same
+@@ 4 adds info | The PDF leaves this kernel out. This is a standard Monte Carlo kernel so the program is complete.
+kernel_code = """
+__kernel void estimate_pi(__global float* result, unsigned int num_samples) {
+    unsigned int seed = 12345u + get_global_id(0) * 7919u;
+    unsigned int inside = 0;
+    for (unsigned int i = 0; i < num_samples; i++) {
+        seed = seed * 1664525u + 1013904223u;
+        float x = (seed >> 8) / 16777216.0f;
+        seed = seed * 1664525u + 1013904223u;
+        float y = (seed >> 8) / 16777216.0f;
+        if (x * x + y * y <= 1.0f) inside++;
+    }
+    result[get_global_id(0)] = 4.0f * inside / num_samples;
+}
+"""
+program = cl.Program(ctx, kernel_code).build()
+@@ 5 same
+@@ 6 same
+@@ 7 same
+@@ 8
+print(f"Estimated value of π: {np.mean(result)}")

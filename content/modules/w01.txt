@@ -1,0 +1,30 @@
+@id w01
+@week 1
+@title LED blinking
+@theme GPIO output, blinking an LED
+@track hardware
+@level 1
+@experiment GPIO programming (LED Blinking) on Jetson Nano.
+@aim To Interface LED with Jetson Nano and Control it using GPIO Programming.
+@requirements Jetson Nano, LEDs, Jetson.GPIO (Library from pip3)
+@note Connect LED to Pin 7 on Jetson Nano Board.
+@result The LED can be seen Blinking.
+@@cell imports | Imports | Bring in the GPIO library to control pins, and time so we can wait.
+import Jetson.GPIO as GPIO
+import time
+@@cell setup | Pin setup | Pick pin 7, number pins by their position on the board, make pin 7 an output that starts HIGH.
+led_pin = 7
+
+GPIO.setmode(GPIO.BOARD)
+
+GPIO.setup(led_pin, GPIO.OUT, initial=GPIO.HIGH)
+@@cell loop | Blink loop | Forever: wait 2 s, LED on, wait 2 s, LED off.
+while True:
+
+  time.sleep(2)
+  GPIO.output(led_pin, GPIO.HIGH)
+  print("LED is ON")
+
+  time.sleep(2)
+  GPIO.output(led_pin, GPIO.LOW)
+  print("LED is OFF")

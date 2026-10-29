@@ -1,0 +1,97 @@
+@id w09
+@week 9
+@title Matrix multiplication (CUDA)
+@theme 2D grid matrix multiplication
+@track software
+@level 4
+@experiment Design parallel algorithm for matrix multiplication using CUDA.
+@aim To design a parallel matrix multiplication algorithm using CUDA.
+@requirements Any GPU which supports CUDA
+@result The output in the terminal is:
+@@output
+Matrix A:
+[[1 2 3]
+ [4 5 6]
+ [7 8 9]]
+Matrix B:
+[[9 8 7]
+ [6 5 4]
+ [3 2 1]]
+Resulting Matrix C:
+[[ 30 24 18]
+ [ 84 69 54]
+ [138 114 90]]
+@@cell imports | Imports | PyCUDA header.
+import pycuda.driver as cuda
+import pycuda.autoinit
+
+import numpy as np
+
+from pycuda.compiler import SourceModule
+@@cell data | Input matrices | A counts 1 to 9, B counts 9 down to 1, C is zeros shaped like A. All int32.
+# Define the input matrices with integer values
+matrix_a = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.int32)
+matrix_b = np.array([[9, 8, 7], [6, 5, 4], [3, 2, 1]], dtype=np.int32)
+
+matrix_c = np.zeros_like(matrix_a, dtype=np.int32)
+@@cell dims | Dimensions | A is M x N, B is N x K, so C is M x K.
+# Matrix dimensions
+M, N, K = matrix_a.shape[0], matrix_a.shape[1], matrix_b.shape[1]
+@@cell kernel | Kernel | This one is an f-string, so every C brace is doubled {{ }}. Each thread owns one C cell: dot product of row of A with column of B.
+# CUDA kernel to perform matrix multiplication
+cuda_code = f"""
+
+__global__ void matrixMul(int *A, int *B, int *C, int M, int N, int K) {{
+
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    int sum = 0;
+
+    if (row < M && col < K) {{
+
+        for (int i = 0; i < N; i++) {{
+            sum += A[row * N + i] * B[i * K + col];
+        }}
+
+        C[row * K + col] = sum;
+
+    }}
+}}
+"""
+@@cell compile | Compile and fetch | Compile, get matrixMul.
+# Compile the CUDA code
+mod = SourceModule(cuda_code)
+
+# Get the kernel function
+matrixMul = mod.get_function("matrixMul")
+@@cell device | Device matrices | One mem_alloc per matrix.
+# Host and device matrices
+device_matrix_a = cuda.mem_alloc(matrix_a.nbytes)
+device_matrix_b = cuda.mem_alloc(matrix_b.nbytes)
+device_matrix_c = cuda.mem_alloc(matrix_c.nbytes)
+@@cell copyin | Copy to device | A and B go up.
+# Copy host data to device
+cuda.memcpy_htod(device_matrix_a, matrix_a)
+cuda.memcpy_htod(device_matrix_b, matrix_b)
+@@cell grid | Grid and block sizes | 16 x 16 threads per block. Grid x covers K columns, grid y covers M rows, both rounded up.
+# Define grid and block sizes
+block_size = (16, 16, 1)  # Specify the third dimension as 1 for 2D grid
+
+grid_size = ((K + block_size[0] - 1) // block_size[0], (M + block_size[1] - 1) // block_size[1])
+@@cell launch | Launch | Three buffers, then M, N, K as int32, then block and grid.
+# Execute the kernel for matrix multiplication
+matrixMul(device_matrix_a, device_matrix_b, device_matrix_c, np.int32(M), np.int32(N), np.int32(K), block=block_size, grid=grid_size)
+@@cell copyout | Copy back | C comes down.
+# Copy the result back to the host
+cuda.memcpy_dtoh(matrix_c, device_matrix_c)
+@@cell print | Print | A, B, then the result.
+# Print the input matrices with integer values
+print("Matrix A:")
+print(matrix_a)
+print("Matrix B:")
+print(matrix_b)
+
+# Print the resulting matrix with integer values
+print("Resulting Matrix C:")
+print(matrix_c)

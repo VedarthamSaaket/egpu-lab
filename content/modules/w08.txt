@@ -1,0 +1,128 @@
+@id w08
+@week 8
+@title Matrix transpose and trace (CUDA)
+@theme 2D threads, shared memory reduction
+@track software
+@level 5
+@experiment Write a CUDA C program to calculate Matrix transpose and trace.
+@aim To implement matrix transposition and trace using CUDA
+@requirements Any GPU which supports CUDA
+@result The terminal will display:
+@@output
+Original Matrix:
+[[ 1.  2.  3.  4.]
+ [ 5.  6.  7.  8.]
+ [ 9. 10. 11. 12.]
+ [13. 14. 15. 16.]]
+
+Transposed Matrix:
+[[ 1.  5.  9. 13.]
+ [ 2.  6. 10. 14.]
+ [ 3.  7. 11. 15.]
+ [ 4.  8. 12. 16.]]
+
+Trace of Matrix: 34.0
+Matrix transpose and trace calculation completed.
+@@cell imports | Imports | PyCUDA header.
+import pycuda.driver as cuda
+import pycuda.autoinit
+
+import numpy as np
+
+from pycuda.compiler import SourceModule
+@@cell size | Size | A 4 by 4 matrix.
+N = 4
+@@cell kernel | Transpose kernel | 2D threads: y gives the row, x gives the column. Write input[row][col] into output[col][row].
+cuda_code = """
+
+__global__ void matrixTranspose(float *input, float *output, int N) {
+
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row < N && col < N) {
+        output[col * N + row] = input[row * N + col];
+
+    }
+}
+@@cell kernel | Trace kernel: load | Shared scratch array of 256. Each thread puts one diagonal value (idx * N + idx) in its slot, 0 if out of range, then waits for everyone.
+__global__ void matrixTrace(float *input, float *trace, int N) {
+
+    __shared__ float partial_sum[256];
+
+    int tid = threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    partial_sum[tid] = 0.0f;
+
+    if (idx < N) {
+        partial_sum[tid] = input[idx * N + idx];
+    }
+
+    __syncthreads();
+@@cell kernel | Trace kernel: reduce | Halve the stride each round and add the partner's value. Thread 0 ends with the block total and adds it to trace atomically.
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+
+        if (tid < stride) {
+            partial_sum[tid] += partial_sum[tid + stride];
+        }
+
+        __syncthreads();
+    }
+
+    if (tid == 0) {
+        atomicAdd(trace, partial_sum[0]);
+    }
+
+}
+"""
+@@cell compile | Compile and fetch | One module, two kernels to pull out.
+mod = SourceModule(cuda_code)
+
+matrixTranspose = mod.get_function("matrixTranspose")
+matrixTrace = mod.get_function("matrixTrace")
+@@cell host | Host data | Numbers 1 to 16 in rows of 4 as float32, an N x N zero output, and one zero for the trace.
+h_input = np.array([[1, 2, 3, 4],
+                    [5, 6, 7, 8],
+                    [9, 10, 11, 12],
+                    [13, 14, 15, 16]], dtype=np.float32)
+
+h_output = np.zeros((N, N), dtype=np.float32)
+h_trace = np.zeros(1, dtype=np.float32)
+@@cell device | Device buffers | One mem_alloc for each host array.
+d_input = cuda.mem_alloc(h_input.nbytes)
+d_output = cuda.mem_alloc(h_output.nbytes)
+d_trace = cuda.mem_alloc(h_trace.nbytes)
+@@cell copyin | Copy to device | Input goes up, and trace goes up too so it starts at 0.
+
+cuda.memcpy_htod(d_input, h_input)
+cuda.memcpy_htod(d_trace, h_trace)
+@@cell launch | Launch transpose | 16 x 16 block, grid rounds N up by 16 in both directions.
+block_size = (16, 16, 1)
+
+grid_size = ((N + 15) // 16, (N + 15) // 16, 1)
+
+matrixTranspose(d_input, d_output, np.int32(N), block=block_size, grid=grid_size)
+@@cell launch | Launch trace | 1D this time: 256 threads, the usual round-up grid.
+block_size_trace = 256
+
+grid_size_trace = (N + block_size_trace - 1) // block_size_trace
+
+matrixTrace(d_input, d_trace, np.int32(N), block=(block_size_trace, 1, 1), grid=(grid_size_trace, 1, 1))
+@@cell copyout | Copy back | Output and trace come down.
+
+cuda.memcpy_dtoh(h_output, d_output)
+cuda.memcpy_dtoh(h_trace, d_trace)
+@@cell print | Print | Original, transposed, then the trace with an f-string.
+print("Original Matrix:")
+print(h_input)
+print("\nTransposed Matrix:")
+print(h_output)
+
+print(f"\nTrace of Matrix: {h_trace[0]}")
+@@cell cleanup | Clean up | Free the three buffers and say done.
+d_input.free()
+d_output.free()
+d_trace.free()
+
+print("Matrix transpose and trace calculation completed.")

@@ -1,0 +1,149 @@
+@id w10
+@week 10
+@title Profiling with timers
+@theme CUDA events, timing and GFLOPS
+@track software
+@level 4
+@experiment Write a CUDA programming for Application profiling using timers
+@aim To write a CUDA programming for Application profiling using timers.
+@requirements Any GPU which supports CUDA
+@result The terminal output will be as follows:
+@@output
+Vector Addition Profiling
+Vector Addition Time: 0.3524 ms
+Vector Size: 1000000 elements
+Throughput: 34.05 GB/s
+
+Matrix Multiplication Profiling
+Matrix Multiplication Time: 45.2187 ms
+Matrix Size: 512x512
+Performance: 5.94 GFLOPS
+
+Application profiling completed.
+@@cell imports | Imports | PyCUDA header.
+import pycuda.driver as cuda
+import pycuda.autoinit
+
+import numpy as np
+
+from pycuda.compiler import SourceModule
+@@cell size | Size | One million elements.
+N = 1000000
+@@cell kernel | Kernel: vectorAdd | The Week 7 kernel, word for word.
+cuda_code = """
+
+__global__ void vectorAdd(float *a, float *b, float *c, int N) {
+
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < N) {
+        c[idx] = a[idx] + b[idx];
+
+    }
+}
+@@cell kernel | Kernel: matrixMultiply | The Week 9 idea with float and a single size: each thread sums a row times a column.
+__global__ void matrixMultiply(float *a, float *b, float *c, int size) {
+
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row < size && col < size) {
+
+        float sum = 0.0f;
+
+        for (int k = 0; k < size; k++) {
+            sum += a[row * size + k] * b[k * size + col];
+        }
+
+        c[row * size + col] = sum;
+
+    }
+}
+"""
+@@cell compile | Compile and fetch | One module, two functions.
+mod = SourceModule(cuda_code)
+
+vectorAdd = mod.get_function("vectorAdd")
+matrixMultiply = mod.get_function("matrixMultiply")
+@@cell host | Vector data | Two random float32 vectors and a zero result.
+h_a = np.random.rand(N).astype(np.float32)
+h_b = np.random.rand(N).astype(np.float32)
+
+h_c = np.zeros(N, dtype=np.float32)
+@@cell device | Vector buffers | One mem_alloc each.
+d_a = cuda.mem_alloc(h_a.nbytes)
+d_b = cuda.mem_alloc(h_b.nbytes)
+d_c = cuda.mem_alloc(h_c.nbytes)
+@@cell copyin | Copy to device | a and b go up.
+cuda.memcpy_htod(d_a, h_a)
+cuda.memcpy_htod(d_b, h_b)
+@@cell grid | Grid and block sizes | 256 and round up.
+block_size = 256
+grid_size = (N + block_size - 1) // block_size
+@@cell events | Timers | Two CUDA events: start and end.
+start = cuda.Event()
+end = cuda.Event()
+@@cell timing | Time the vector add | Header, record start, launch, record end, wait for end. This record-launch-record-sync sandwich repeats for the matrix.
+print("=== Vector Addition Profiling ===")
+
+start.record()
+
+vectorAdd(d_a, d_b, d_c, np.int32(N), block=(block_size, 1, 1), grid=(grid_size, 1, 1))
+
+end.record()
+end.synchronize()
+@@cell report | Vector report | Time between events in ms. Throughput: N floats x 4 bytes x 3 arrays, per ms, over 1e6 gives GB/s.
+time_ms = start.time_till(end)
+
+print(f"Vector Addition Time: {time_ms:.4f} ms")
+print(f"Vector Size: {N} elements")
+
+print(f"Throughput: {(N * 4 * 3 / time_ms) / 1e6:.2f} GB/s")
+@@cell copyout | Copy back | c comes down.
+cuda.memcpy_dtoh(h_c, d_c)
+@@cell matrix | Matrix data | 512 x 512 random float32 matrices, zero result, and a buffer for each.
+matrix_size = 512
+
+h_mat_a = np.random.rand(matrix_size, matrix_size).astype(np.float32)
+h_mat_b = np.random.rand(matrix_size, matrix_size).astype(np.float32)
+
+h_mat_c = np.zeros((matrix_size, matrix_size), dtype=np.float32)
+
+d_mat_a = cuda.mem_alloc(h_mat_a.nbytes)
+d_mat_b = cuda.mem_alloc(h_mat_b.nbytes)
+d_mat_c = cuda.mem_alloc(h_mat_c.nbytes)
+@@cell copyin | Copy matrices | a and b go up.
+cuda.memcpy_htod(d_mat_a, h_mat_a)
+cuda.memcpy_htod(d_mat_b, h_mat_b)
+@@cell timing | Time the matrix multiply | Header, 16 x 16 blocks, then the same record-launch-record-sync sandwich.
+print("\n=== Matrix Multiplication Profiling ===")
+
+block_dim = (16, 16, 1)
+
+grid_dim = ((matrix_size + 15) // 16, (matrix_size + 15) // 16, 1)
+
+start.record()
+
+matrixMultiply(d_mat_a, d_mat_b, d_mat_c, np.int32(matrix_size), block=block_dim, grid=grid_dim)
+
+end.record()
+end.synchronize()
+@@cell report | Matrix report | A matrix multiply does 2 x size cubed operations. Divide by ms and 1e6 to get GFLOPS.
+time_ms = start.time_till(end)
+
+flops = 2 * matrix_size ** 3
+gflops = (flops / time_ms) / 1e6
+
+print(f"Matrix Multiplication Time: {time_ms:.4f} ms")
+print(f"Matrix Size: {matrix_size}x{matrix_size}")
+print(f"Performance: {gflops:.2f} GFLOPS")
+@@cell cleanup | Clean up | Free all six buffers, then say done.
+d_a.free()
+d_b.free()
+d_c.free()
+
+d_mat_a.free()
+d_mat_b.free()
+d_mat_c.free()
+
+print("\nApplication profiling completed.")

@@ -1,0 +1,98 @@
+@id w13
+@week 13
+@title Matrix transpose and trace (OpenCL)
+@theme OpenCL transpose and atomic add
+@track software
+@level 5
+@experiment Write an OpenCL program for calculating matrix transpose and trace.
+@aim To calculate matrix transpose and trace using OpenCL
+@requirements Computer and its components, OpenCL library
+@result The output in the terminal is:
+@@output
+Original Matrix:
+[[ 1.  2.  3.  4.]
+ [ 5.  6.  7.  8.]
+ [ 9. 10. 11. 12.]
+ [13. 14. 15. 16.]]
+
+Transposed Matrix:
+[[ 1.  5.  9. 13.]
+ [ 2.  6. 10. 14.]
+ [ 3.  7. 11. 15.]
+ [ 4.  8. 12. 16.]]
+
+Trace of Matrix: 34.0
+Matrix transpose and trace calculation completed.
+@@cell imports | Imports | OpenCL header.
+import pyopencl as cl
+import numpy as np
+@@cell size | Size | 4 by 4.
+N = 4
+@@cell kernel | Transpose kernel | Note the swap from CUDA: row is get_global_id(1), col is get_global_id(0). Then the same output[col][row] = input[row][col].
+opencl_code = """
+
+__kernel void matrixTranspose(__global float* input, __global float* output, int N) {
+
+    int row = get_global_id(1);
+    int col = get_global_id(0);
+
+    if (row < N && col < N) {
+        output[col * N + row] = input[row * N + col];
+
+    }
+}
+@@cell kernel | Trace kernel | Much simpler than CUDA week 8: each work item adds its diagonal value straight into trace. atomic_add_global is not standard OpenCL, but it is what the PDF uses.
+__kernel void matrixTrace(__global float* input, __global float* trace, int N)
+{
+
+    int idx = get_global_id(0);
+
+    if (idx < N) {
+        atomic_add_global(trace, input[idx * N + idx]);
+    }
+
+}
+"""
+@@cell context | Context and queue | Plural this time: all platforms, devices of the first one, context from devices, queue.
+platforms = cl.get_platforms()
+devices = platforms[0].get_devices()
+
+ctx = cl.Context(devices)
+queue = cl.CommandQueue(ctx)
+@@cell build | Build | Here the program is called prg.
+
+prg = cl.Program(ctx, opencl_code).build()
+@@cell host | Host data | Same 1 to 16 matrix as week 8, zero output, one zero for trace.
+h_input = np.array([[1, 2, 3, 4],
+                    [5, 6, 7, 8],
+                    [9, 10, 11, 12],
+                    [13, 14, 15, 16]], dtype=np.float32)
+
+h_output = np.zeros((N, N), dtype=np.float32)
+h_trace = np.zeros(1, dtype=np.float32)
+@@cell buffers | Buffers | mf is a short name for mem_flags. Input READ_ONLY + copy, output WRITE_ONLY, trace READ_WRITE + copy.
+mf = cl.mem_flags
+
+d_input = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=h_input)
+
+d_output = cl.Buffer(ctx, mf.WRITE_ONLY, h_output.nbytes)
+
+d_trace = cl.Buffer(ctx, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf=h_trace)
+@@cell launch | Run both kernels | Transpose runs on an (N, N) grid, trace on (N,). Local size None both times.
+
+prg.matrixTranspose(queue, (N, N), None, d_input, d_output, np.int32(N))
+
+prg.matrixTrace(queue, (N,), None, d_input, d_trace, np.int32(N))
+@@cell copyout | Copy back | Destination first, then source.
+
+cl.enqueue_copy(queue, h_output, d_output)
+cl.enqueue_copy(queue, h_trace, d_trace)
+@@cell print | Print | Same prints as week 8.
+print("Original Matrix:")
+print(h_input)
+print("\nTransposed Matrix:")
+print(h_output)
+
+print(f"\nTrace of Matrix: {h_trace[0]}")
+
+print("Matrix transpose and trace calculation completed.")

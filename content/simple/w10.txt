@@ -1,0 +1,40 @@
+@@ 1 same
+@@ 2 same
+@@ 3
+cuda_code = """
+__global__ void vectorAdd(float *a, float *b, float *c, int N) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < N) c[idx] = a[idx] + b[idx];
+}
+@@ 4
+
+__global__ void matrixMultiply(float *a, float *b, float *c, int size) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= size || col >= size) return;
+    float sum = 0.0f;
+    for (int k = 0; k < size; k++) sum += a[row * size + k] * b[k * size + col];
+    c[row * size + col] = sum;
+}
+"""
+@@ 5 same
+@@ 6 same
+@@ 7 same
+@@ 8 same
+@@ 9
+import math
+block_size = 256
+grid_size = math.ceil(N / block_size)
+@@ 10 same
+@@ 11 same
+@@ 12 same
+@@ 13 same
+@@ 14 same
+@@ 15 same
+@@ 16 same
+@@ 17 same
+@@ 18
+for d in (d_a, d_b, d_c, d_mat_a, d_mat_b, d_mat_c):
+    d.free()
+
+print("\nApplication profiling completed.")

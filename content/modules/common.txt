@@ -1,0 +1,68 @@
+@id common
+@week 0
+@title Common blocks
+@theme Imports, memory copies, grid sizes, OpenCL setup
+@track common
+@level 1
+@excerpt yes
+@experiment The lines that show up again and again across the weeks.
+@aim Learn these once and every week gets shorter.
+@requirements Nothing
+@result These are pieces, not a full program, so there is nothing to run.
+@@cell imports | Jetson header | Weeks 1 to 3 all start with these two lines.
+import Jetson.GPIO as GPIO
+import time
+@@cell imports | PyCUDA header | Weeks 6 to 11 all start with these four lines. Order: driver, autoinit, numpy, compiler.
+import pycuda.driver as cuda
+import pycuda.autoinit
+
+import numpy as np
+
+from pycuda.compiler import SourceModule
+@@cell imports | PyOpenCL header | Weeks 12 to 14 start with these two lines.
+import pyopencl as cl
+import numpy as np
+@@cell kernel | CUDA thread index | Inside almost every CUDA kernel: my global index is block number times block size plus my thread number. Then guard against running past N.
+cuda_code = """
+
+__global__ void vectorAdd(float *a, float *b, float *c, int N) {
+
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < N) {
+        c[idx] = a[idx] + b[idx];
+    }
+
+}
+"""
+@@cell compile | Compile and fetch | SourceModule compiles the text, get_function pulls a kernel out by name.
+mod = SourceModule(cuda_code)
+vectorAdd = mod.get_function("vectorAdd")
+@@cell device | Device memory | mem_alloc takes the byte size of the host array it mirrors.
+d_a = cuda.mem_alloc(h_a.nbytes)
+d_b = cuda.mem_alloc(h_b.nbytes)
+d_c = cuda.mem_alloc(h_c.nbytes)
+@@cell copyin | Host to device | memcpy_htod(device, host). Destination first.
+cuda.memcpy_htod(d_a, h_a)
+cuda.memcpy_htod(d_b, h_b)
+@@cell grid | Grid and block sizes | 256 threads per block, and the round-up trick for the number of blocks.
+block_size = 256
+grid_size = (N + block_size - 1) // block_size
+@@cell launch | Launch | Kernel arguments, scalars wrapped in np.int32, then block and grid 3-tuples.
+vectorAdd(d_a, d_b, d_c, np.int32(N), block=(block_size, 1, 1), grid=(grid_size, 1, 1))
+@@cell copyout | Device to host | memcpy_dtoh(host, device). Destination first again.
+cuda.memcpy_dtoh(h_c, d_c)
+@@cell cleanup | Free | One free() per device buffer.
+d_a.free()
+d_b.free()
+d_c.free()
+@@cell context | OpenCL context and queue | Platform, device, context, queue. Four lines, always in that order.
+platform = cl.get_platforms()[0]
+device = platform.get_devices()[0]
+
+ctx = cl.Context([device])
+queue = cl.CommandQueue(ctx)
+@@cell build | OpenCL build | Program from text, then build.
+program = cl.Program(ctx, kernel_code).build()
+@@cell copyout | OpenCL copy back | enqueue_copy(queue, destination, source), then wait.
+cl.enqueue_copy(queue, matrix_C, buffer_C).wait()

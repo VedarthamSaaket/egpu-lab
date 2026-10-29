@@ -1,0 +1,26 @@
+@@ 1 same
+@@ 2 same
+@@ 3
+opencl_code = """
+__kernel void matrixTranspose(__global float* input, __global float* output, int N) {
+    int row = get_global_id(1);
+    int col = get_global_id(0);
+    if (row < N && col < N) output[col * N + row] = input[row * N + col];
+}
+@@ 4
+
+__kernel void matrixTrace(__global float* input, __global float* trace, int N) {
+    int idx = get_global_id(0);
+    if (idx < N) atomic_add_global(trace, input[idx * N + idx]);
+}
+"""
+@@ 5 same
+@@ 6 same
+@@ 7
+h_input = np.arange(1, 17, dtype=np.float32).reshape(N, N)
+h_output = np.zeros((N, N), dtype=np.float32)
+h_trace = np.zeros(1, dtype=np.float32)
+@@ 8 same
+@@ 9 same
+@@ 10 same
+@@ 11 same

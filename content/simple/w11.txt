@@ -1,0 +1,24 @@
+@@ 1 same
+@@ 2 same
+@@ 3 fixes info | Fixes a mistake in the PDF: the start value is set here, before the copy, so the GPU really starts from it. The printed answer stays the same.
+input_data = np.array(integer_values, dtype=np.int32)
+output_data = np.array([2147483646], dtype=np.int32)
+@@ 4
+cuda_code = """
+__global__ void findMin(int *data, int *min, int N) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < N) atomicMin(min, data[idx]);
+}
+"""
+@@ 5
+findMin = SourceModule(cuda_code).get_function("findMin")
+@@ 6 same
+@@ 7 same
+@@ 8
+import math
+block_size = 256
+grid_size = math.ceil(len(input_data) / block_size)
+@@ 9 drop | Not needed: output_data already starts at 2147483646 in cell 3, before the copy.
+@@ 10 same
+@@ 11 same
+@@ 12 same

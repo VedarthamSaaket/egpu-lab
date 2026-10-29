@@ -1,0 +1,25 @@
+@@ 1 same
+@@ 2 same
+@@ 3
+cuda_code = """
+__global__ void vectorAdd(float *a, float *b, float *c, int N) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < N) c[idx] = a[idx] + b[idx];
+}
+"""
+@@ 4
+vectorAdd = SourceModule(cuda_code).get_function("vectorAdd")
+@@ 5
+h_a = np.arange(N, dtype=np.int32)
+h_b = h_a * 2
+h_c = np.zeros_like(h_a)
+@@ 6 same
+@@ 7 same
+@@ 8
+import math
+block_size = 256
+grid_size = math.ceil(N / block_size)
+@@ 9 same
+@@ 10 same
+@@ 11 same
+@@ 12 same

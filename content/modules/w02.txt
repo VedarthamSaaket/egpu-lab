@@ -1,0 +1,54 @@
+@id w02
+@week 2
+@title Traffic light
+@theme GPIO output with timed phases
+@track hardware
+@level 2
+@experiment GPIO programming for traffic light.
+@aim To Interface LEDs with Jetson Nano and simulate Traffic Lights.
+@requirements Jetson Nano, LEDs, Jetson.GPIO (Library from pip3)
+@note Connect red, yellow and green LEDs to 7, 11 and 13th pins respectively.
+@result The LEDs Simulate the traffic lights.
+@@cell imports | Imports | GPIO to drive the pins, time to hold each light.
+import Jetson.GPIO as GPIO
+import time
+@@cell pins | Pin numbers | Three LEDs on board pins 7, 11 and 13. Odd numbers going up.
+red_pin = 7
+yellow_pin = 11
+green_pin = 13
+@@cell setup | Pin setup | Board numbering, then make all three pins outputs. Same line three times, only the name changes.
+GPIO.setmode(GPIO.BOARD)
+
+GPIO.setup(red_pin, GPIO.OUT)
+GPIO.setup(yellow_pin, GPIO.OUT)
+GPIO.setup(green_pin, GPIO.OUT)
+@@cell phase | Red for 3 s | Open the try and the forever loop. Phase 1: only red is HIGH, hold 3 s.
+try:
+    while True:
+
+        GPIO.output(red_pin, GPIO.HIGH)
+        GPIO.output(yellow_pin, GPIO.LOW)
+        GPIO.output(green_pin, GPIO.LOW)
+
+        time.sleep(3)
+@@cell phase | Red + yellow for 1 s | Phase 2: red and yellow both HIGH, hold 1 s. Every phase is the same 4-line block: red, yellow, green, sleep.
+        GPIO.output(red_pin, GPIO.HIGH)
+        GPIO.output(yellow_pin, GPIO.HIGH)
+        GPIO.output(green_pin, GPIO.LOW)
+
+        time.sleep(1)
+@@cell phase | Green for 5 s | Phase 3: only green is HIGH, hold 5 s.
+        GPIO.output(red_pin, GPIO.LOW)
+        GPIO.output(yellow_pin, GPIO.LOW)
+        GPIO.output(green_pin, GPIO.HIGH)
+
+        time.sleep(5)
+@@cell phase | Yellow for 2 s | Phase 4: only yellow is HIGH, hold 2 s, then the loop starts again at red. Times go 3, 1, 5, 2.
+        GPIO.output(red_pin, GPIO.LOW)
+        GPIO.output(yellow_pin, GPIO.HIGH)
+        GPIO.output(green_pin, GPIO.LOW)
+
+        time.sleep(2)
+@@cell cleanup | Stop cleanly | When you press Ctrl+C, release the pins.
+except KeyboardInterrupt:
+    GPIO.cleanup()

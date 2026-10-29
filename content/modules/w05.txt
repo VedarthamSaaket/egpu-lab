@@ -1,0 +1,61 @@
+@id w05
+@week 5
+@title Image classification (C++)
+@theme jetson-inference classification in C++
+@track hardware
+@level 5
+@lang cpp
+@experiment To perform data classification using Jetson Nano.
+@aim To perform Data classification.
+@requirements Jetson Nano, LEDs, Jetson.GPIO (Library from pip3)
+@result (left blank in the PDF)
+@@cell includes | Includes | Three jetson-inference headers: the classifier, CUDA memory, image loading.
+#include "jetson-inference/imageNet.h"
+#include "jetson-inference/cudaMappedMemory.h"
+#include "jetson-inference/loadImage.h"
+@@cell args | Check arguments | main gets the command line. Needs exactly 4 items: program, model, labels, image. Otherwise print usage and quit.
+int main(int argc, char** argv) {
+
+    if (argc != 4) {
+
+        printf("Usage: %s <model.engine> <labels.txt> <input_image.jpg>\n", argv[0]);
+
+        return 1;
+    }
+@@cell net | Load the network | Create the classifier, then load the model (argv[1]) and labels (argv[2]).
+    imageNet* net = imageNet::Create();
+    net->LoadNetwork(argv[1], argv[2]);
+@@cell image | Load the image | Pointer for GPU image, width and height, then load argv[3]. If it fails, print and quit.
+    float* imgCUDA = NULL;
+    int imgWidth, imgHeight;
+
+    if (!loadImage(argv[3], &imgCUDA, &imgWidth, &imgHeight)) {
+
+        printf("Failed to load image\n");
+        return 1;
+    }
+@@cell data | Pack the image | Put width, height and the pointer into one ImageData struct.
+    imageNet::ImageData imgData;
+
+    imgData.width = imgWidth;
+    imgData.height = imgHeight;
+    imgData.input = imgCUDA;
+@@cell classify | Classify | Start confidence at 0, ask the network for a class ID; it fills confidence through the pointer.
+    float confidence = 0.0f;
+    int classID = net->Classify(imgData, &confidence);
+@@cell print | Print the answer | ID 0 or more means success: print ID, name, confidence. Otherwise print failure.
+    if (classID >= 0) {
+
+        printf("Class ID: %d\n", classID);
+        printf("Class: %s\n", net->GetClassDesc(classID));
+        printf("Confidence: %f\n", confidence);
+
+    } else {
+        printf("Failed to classify the image\n");
+    }
+@@cell cleanup | Clean up | Free the GPU image, delete the network, return 0.
+    cudaFree(imgCUDA);
+    delete net;
+
+    return 0;
+}

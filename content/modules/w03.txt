@@ -1,0 +1,43 @@
+@id w03
+@week 3
+@title Button and LED
+@theme GPIO input, button with pull-up
+@track hardware
+@level 3
+@experiment Interfacing sensors and actuators to Jetson Nano.
+@aim To Interface sensors and actuators to Jetson Nano and Read/Write data and output.
+@requirements Jetson Nano, LEDs, Jetson.GPIO, Button.
+@note Connect LED to Pin 18 and Button to Pin 17 on Jetson Nano Board.
+@result The LED turns on when the button is pressed and then turns off when the button is released.
+@@cell imports | Imports | Same two imports as every Jetson week.
+import Jetson.GPIO as GPIO
+import time
+@@cell pins | Pin numbers | Button on 17 (input), LED on 18 (output). 17 comes first, like the button comes first.
+button_pin = 17 # Input pin for the push-button switch
+led_pin = 18      # Output pin for the LED
+@@cell setup | Initialize GPIO | BCM numbering this time. Button is an input with a pull-up, LED is an output.
+# Initialize GPIO
+GPIO.setmode(GPIO.BCM)
+
+GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+GPIO.setup(led_pin, GPIO.OUT)
+@@cell loop | Read and react | Forever: read the button. Pressed reads LOW (because of the pull-up), so LOW means LED on. Check 10 times a second.
+try:
+    while True:
+
+        button_state = GPIO.input(button_pin)
+
+        if button_state == GPIO.LOW:
+            GPIO.output(led_pin, GPIO.HIGH)
+        else:
+            GPIO.output(led_pin, GPIO.LOW)
+
+        time.sleep(0.1)
+@@cell cleanup | Stop cleanly | Ctrl+C does nothing special (pass), and finally always releases the pins.
+except KeyboardInterrupt:
+    pass
+
+finally:
+    # Clean up and release GPIO pins
+    GPIO.cleanup()

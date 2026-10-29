@@ -1,0 +1,22 @@
+@@ 1 same
+@@ 2 same
+@@ 3
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup([red_pin, yellow_pin, green_pin], GPIO.OUT)
+@@ 4 helper
+def light(red, yellow, green, seconds):
+    GPIO.output(red_pin, red)
+    GPIO.output(yellow_pin, yellow)
+    GPIO.output(green_pin, green)
+    time.sleep(seconds)
+
+try:
+    while True:
+        light(1, 0, 0, 3)
+@@ 5
+        light(1, 1, 0, 1)
+@@ 6
+        light(0, 0, 1, 5)
+@@ 7
+        light(0, 1, 0, 2)
+@@ 8 same

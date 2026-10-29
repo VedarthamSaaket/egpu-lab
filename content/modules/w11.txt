@@ -1,0 +1,90 @@
+@id w11
+@week 11
+@title Minimum of 100 values
+@theme Atomic operations, atomicMin
+@track software
+@level 3
+@experiment Write a CUDA program to find out minimum among 100 values using a CUDA kernel.
+@aim To find out the minimum among 100 values using CUDA
+@requirements Any GPU which supports CUDA
+@result The output in the terminal is:
+@@output
+Input Data:
+[458 237 278 430 849 25 23 894 929 954 730 470 861 595 245 921 73 520 773 797
+801 614 241 402 539 988 344 944 89 876 398 165 992 515 688 180 88 505 479 320
+941 639 711 584 434 605 294 12 941 190 898 651 142 257 692 226 740 650 833 370
+45 310 182 724 528 130 770 510 273 594 367 650 420 593 977 458 951 195 43 694
+239 790 274 891 422 105 813 458 639 726 550 984 278 0 592 507 527 469 229 791]
+Minimum Value: 0
+@@cell imports | Imports | PyCUDA header.
+import pycuda.driver as cuda
+import pycuda.autoinit
+
+import numpy as np
+
+from pycuda.compiler import SourceModule
+@@cell numbers | The 100 values | Just data. You do not need to memorise the numbers, only that it is a plain list called integer_values.
+# Define the list of integer values
+integer_values = [458, 237, 278, 430, 849, 25, 23, 894, 929, 954,
+                  730, 470, 861, 595, 245, 921, 73, 520, 773, 797,
+                  801, 614, 241, 402, 539, 988, 344, 944, 89, 876,
+                  398, 165, 992, 515, 688, 180, 88, 505, 479, 320,
+                  941, 639, 711, 584, 434, 605, 294, 12, 941, 190,
+                  898, 651, 142, 257, 692, 226, 740, 650, 833, 370,
+                  45, 310, 182, 724, 528, 130, 770, 510, 273, 594,
+                  367, 650, 420, 593, 977, 458, 951, 195, 43, 694,
+                  239, 790, 274, 891, 422, 105, 813, 458, 639, 726,
+                  550, 984, 278, 0, 592, 507, 527, 469, 229, 791]
+@@cell arrays | Input and output | The list becomes an int32 array, and the output is a single int32 slot.
+# Initialize the input data with the list of integer values
+input_data = np.array(integer_values, dtype=np.int32)
+
+output_data = np.zeros(1, dtype=np.int32)
+@@cell kernel | Kernel | Every thread offers its number to atomicMin. The smallest one wins.
+# CUDA kernel to find the minimum value
+cuda_code = """
+
+__global__ void findMin(int *data, int *min, int N) {
+
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < N) {
+        atomicMin(min, data[idx]);
+
+    }
+}
+"""
+@@cell compile | Compile and fetch | Compile, get findMin.
+# Compile the CUDA code
+mod = SourceModule(cuda_code)
+
+# Get the kernel function
+findMin = mod.get_function("findMin")
+@@cell device | Device arrays | One mem_alloc for input, one for output.
+# Device arrays
+device_input = cuda.mem_alloc(input_data.nbytes)
+device_output = cuda.mem_alloc(output_data.nbytes)
+@@cell copyin | Copy to device | Both go up, output still holding 0.
+# Copy host data to device
+cuda.memcpy_htod(device_input, input_data)
+cuda.memcpy_htod(device_output, output_data)
+@@cell grid | Grid and block sizes | Same round-up, with len(input_data) as N.
+# Define grid and block sizes
+block_size = 256
+
+grid_size = (len(input_data) + block_size - 1) // block_size
+@@cell init | Start value | Set the host slot to a huge number. Heads up: this happens after the copy, so the GPU never sees it. The answer is still 0 only because the list contains 0.
+# Initialize the minimum value to a large integer
+output_data[0] = 2147483646  # Large positive integer (maximum value for int32)
+@@cell launch | Launch | input, output, length as int32, block, grid.
+# Execute the kernel to find the minimum value
+findMin(device_input, device_output, np.int32(len(input_data)), block=(block_size, 1, 1), grid=(grid_size, 1, 1))
+@@cell copyout | Copy back | The single minimum comes down.
+# Copy the result back to the host
+cuda.memcpy_dtoh(output_data, device_output)
+@@cell print | Print | The data, then the minimum.
+# Print the input and minimum value
+print("Input Data:")
+print(input_data)
+
+print("Minimum Value:", output_data[0])

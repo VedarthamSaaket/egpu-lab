@@ -1,0 +1,30 @@
+@@ 1 same
+@@ 2
+matrix_a = np.arange(1, 10, dtype=np.int32).reshape(3, 3)
+matrix_b = np.array([[9, 8, 7], [6, 5, 4], [3, 2, 1]], dtype=np.int32)
+matrix_c = np.zeros_like(matrix_a)
+@@ 3
+M, N = matrix_a.shape
+K = matrix_b.shape[1]
+@@ 4 info | A plain string instead of an f-string, so the C braces are single again.
+cuda_code = """
+__global__ void matrixMul(int *A, int *B, int *C, int M, int N, int K) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row >= M || col >= K) return;
+    int sum = 0;
+    for (int i = 0; i < N; i++) sum += A[row * N + i] * B[i * K + col];
+    C[row * K + col] = sum;
+}
+"""
+@@ 5
+matrixMul = SourceModule(cuda_code).get_function("matrixMul")
+@@ 6 same
+@@ 7 same
+@@ 8
+import math
+block_size = (16, 16, 1)
+grid_size = (math.ceil(K / 16), math.ceil(M / 16))
+@@ 9 same
+@@ 10 same
+@@ 11 same

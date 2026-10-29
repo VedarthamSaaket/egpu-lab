@@ -1,0 +1,53 @@
+@id w14
+@week 14
+@title Estimate pi (OpenCL)
+@theme OpenCL Monte Carlo estimate of pi
+@track software
+@level 3
+@experiment Write an OpenCL program for calculating value of pi(π).
+@aim To calculate the value of pi using OpenCL.
+@requirements Computer and its components, OpenCL library
+@result The terminal output is:
+@caveat The PDF leaves out the estimate_pi kernel and only has a placeholder comment. When you run it here, the simulator plugs in a standard Monte Carlo kernel so you still get an answer.
+@@output
+Estimated value of π: 3.1416369673013687
+@@cell imports | Imports and work items | OpenCL header, then 1000 work items (threads).
+import pyopencl as cl
+import numpy as np
+
+# Number of work items (threads)
+num_work_items = 1000
+@@cell samples | Samples | Each work item throws 100000 random darts.
+# Number of samples for each work item
+num_samples = 100000
+@@cell context | Context and queue | The OpenCL four-step again.
+# Initialize OpenCL context and command queue
+platform = cl.get_platforms()[0]
+device = platform.get_devices()[0]
+
+ctx = cl.Context([device])
+queue = cl.CommandQueue(ctx)
+@@cell kernel | Kernel (placeholder) | The PDF only has a comment here. Learn the shape: kernel_code is a triple-quoted string, then build.
+# Create an OpenCL program from the kernel code
+kernel_code = """
+
+    // ... (the OpenCL kernel code provided above)
+"""
+
+program = cl.Program(ctx, kernel_code).build()
+@@cell buffer | Result buffer | One float per work item, and a WRITE_ONLY buffer of that size.
+# Create a result buffer to store pi estimates
+result = np.empty(num_work_items, dtype=np.float32)
+
+buffer_result = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, result.nbytes)
+@@cell launch | Execute | Global size is a 1-tuple (num_work_items,), local None, then buffer and samples as uint32.
+# Execute the OpenCL kernel
+program.estimate_pi(queue, (num_work_items,), None, buffer_result, np.uint32(num_samples))
+@@cell copyout | Copy back | Copy results down and wait.
+# Copy the result back to the host
+cl.enqueue_copy(queue, result, buffer_result).wait()
+@@cell print | Average | Average the 1000 estimates and print.
+# Calculate the final estimate of pi
+estimated_pi = np.mean(result)
+
+print(f"Estimated value of π: {estimated_pi}")

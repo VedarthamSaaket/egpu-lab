@@ -1,0 +1,22 @@
+@@ 1 same
+@@ 2
+cuda_code = """
+__global__ void square_array(int *in, int *out, int N) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < N) out[idx] = in[idx] * in[idx];
+}
+"""
+@@ 3
+square_array = SourceModule(cuda_code).get_function("square_array")
+@@ 4
+input_array = np.arange(10, 100, 10, dtype=np.int32)
+N = input_array.size
+@@ 5 same
+@@ 6 same
+@@ 7
+import math
+block_size = 256
+grid_size = math.ceil(N / block_size)
+@@ 8 same
+@@ 9 same
+@@ 10 same

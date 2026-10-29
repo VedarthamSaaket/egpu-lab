@@ -1,0 +1,91 @@
+@id w12
+@week 12
+@title Matrix multiplication (OpenCL)
+@theme PyOpenCL context, buffers and kernels
+@track software
+@level 3
+@experiment Write an OpenCL program for matrix multiplication.
+@aim To write an OpenCL program to multiply two matrices
+@requirements Computer and its components, OpenCL
+@result The output in the terminal is as follows (the matrices are random, so yours will differ):
+@@output
+Matrix A:
+[[6 2 5]
+ [3 3 7]
+ [2 5 1]]
+Matrix B:
+[[8 7 5]
+ [2 3 8]
+ [1 7 2]]
+Resulting Matrix C:
+[[31 59 59]
+ [23 67 61]
+ [25 29 31]]
+@@cell imports | Imports | The OpenCL header is only two lines: pyopencl as cl, numpy as np.
+import pyopencl as cl
+import numpy as np
+@@cell kernel | Kernel | Same maths as the CUDA matrixMul, but the row and col come from get_global_id(0) and (1), and every pointer is __global.
+# OpenCL kernel for matrix multiplication
+kernel_code = """
+
+__kernel void matrix_multiply(__global int* A, __global int* B, __global int* C, const int M, const int N, const int K) {
+
+    int row = get_global_id(0);
+    int col = get_global_id(1);
+
+    int sum = 0;
+
+    if (row < M && col < K) {
+
+        for (int i = 0; i < N; i++) {
+            sum += A[row * N + i] * B[i * K + col];
+        }
+
+        C[row * K + col] = sum;
+
+    }
+}
+"""
+@@cell dims | Dimensions | All three are 3.
+# Matrix dimensions
+M = 3
+N = 3
+K = 3
+@@cell data | Random matrices | Random ints from 1 to 9 (10 is excluded), A is M x N, B is N x K.
+# Create random matrices A and B
+matrix_A = np.random.randint(1, 10, size=(M, N), dtype=np.int32)
+matrix_B = np.random.randint(1, 10, size=(N, K), dtype=np.int32)
+@@cell output | Output matrix | Zeros, M x K.
+# Initialize an output matrix C
+matrix_C = np.zeros((M, K), dtype=np.int32)
+@@cell context | Context and queue | The OpenCL four-step: first platform, its first device, a context on that device, a queue on that context.
+# Create an OpenCL context and command queue
+platform = cl.get_platforms()[0]
+device = platform.get_devices()[0]
+
+ctx = cl.Context([device])
+queue = cl.CommandQueue(ctx)
+@@cell build | Build | Program from the kernel text, then build it.
+# Compile the OpenCL kernel
+program = cl.Program(ctx, kernel_code).build()
+@@cell buffers | Buffers | A and B are READ_ONLY and copied from the host. C is WRITE_ONLY, just sized.
+# Create OpenCL buffers for matrices A, B, and C
+buffer_A = cl.Buffer(ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=matrix_A)
+buffer_B = cl.Buffer(ctx, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=matrix_B)
+
+buffer_C = cl.Buffer(ctx, cl.mem_flags.WRITE_ONLY, matrix_C.nbytes)
+@@cell launch | Execute | program.kernel(queue, global size, local size None, then the arguments).
+# Execute the OpenCL kernel
+program.matrix_multiply(queue, matrix_A.shape, None, buffer_A, buffer_B, buffer_C, np.int32(M), np.int32(N), np.int32(K))
+@@cell copyout | Copy back | enqueue_copy(queue, destination, source), then wait.
+# Copy the result back to the host
+cl.enqueue_copy(queue, matrix_C, buffer_C).wait()
+@@cell print | Print | A, B, C.
+# Print the input matrices and the resulting matrix
+print("Matrix A:")
+print(matrix_A)
+print("Matrix B:")
+print(matrix_B)
+
+print("Resulting Matrix C:")
+print(matrix_C)
